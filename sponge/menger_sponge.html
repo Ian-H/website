@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html>
+
+	<head>
+		<meta charset=utf-8>
+		<title>I dream of cubes</title>
+		<style>
+			body, html {
+				width: 100%;
+				height: 100%;
+				margin: 0;
+				padding: 0;
+				overflow: hidden;
+			}
+			canvas {
+				position:absolute;
+			}
+		</style>
+	</head>
+	
+	<body>
+		<script src="three.js"></script>
+		<script src='https://threejs.org/examples/js/controls/OrbitControls.js'></script>
+		<script>
+			// Globals
+			var scene;
+			var camera;	
+			var renderer;
+			
+			var fieldOfView = 75.0;
+			var autoRotateStep = 0.25; //
+			
+			var originalCubeSizeX = 8.0; // 8.0
+			var originalCubeSizeY = 8.0; // 8.0
+			var originalCubeSizeZ = 8.0; // 8.0
+			
+			var cubeDepth = 3; // 3
+			
+			function init()
+			{
+				scene = new THREE.Scene();	
+				camera = new THREE.PerspectiveCamera(
+					fieldOfView, window.innerWidth / window.innerHeight, 0.1, 1000 );
+			    var controls = new THREE.OrbitControls(camera)
+
+				renderer = new THREE.WebGLRenderer();
+				renderer.setSize( window.innerWidth, window.innerHeight );
+				document.body.appendChild( renderer.domElement );
+			}
+			
+			function computeLowerLeftCubeVertex(cube)
+			{
+				var x = cube.position.x - (0.5)*cube.geometry.parameters.width;
+				var y = cube.position.y - (0.5)*cube.geometry.parameters.height;
+				var z = cube.position.z + (0.5)*cube.geometry.parameters.depth;
+				return new THREE.Vector3(x,y,z);
+			}
+			
+			function shouldNotRenderCube(x, y, z)
+			{
+				if (
+						(x == 1 && y == 1 && z == 1) // Center
+					 || (x == 1 && y == 1 && z == 0) // Front
+					 || (x == 1 && y == 1 && z == 2) // Back
+					 || (x == 0 && y == 1 && z == 1) // Left
+					 || (x == 2 && y == 1 && z == 1) // Right
+					 || (x == 1 && y == 2 && z == 1) // Top
+					 || (x == 1 && y == 0 && z == 1) // Bottom
+				   )
+				{
+					return true;
+				}
+				
+				return false;
+			}
+			
+			function computeSponge(cube)
+			{
+				var lowerLeftVertex = computeLowerLeftCubeVertex(cube);
+				
+				var subCubeSideLenX = cube.geometry.parameters.width / 3.0;
+				var subCubeSideLenY = cube.geometry.parameters.height / 3.0;
+				var subCubeSideLenZ = cube.geometry.parameters.depth / 3.0;
+				
+				var initialCenter = new THREE.Vector3(
+					lowerLeftVertex.x, lowerLeftVertex.y, lowerLeftVertex.z);
+				initialCenter.setX(initialCenter.x + (0.5)*subCubeSideLenX);
+				initialCenter.setY(initialCenter.y + (0.5)*subCubeSideLenY);
+				initialCenter.setZ(initialCenter.z - (0.5)*subCubeSideLenZ);
+				
+				var subCubes = [];
+				var currCenter = new THREE.Vector3(
+					initialCenter.x, initialCenter.y, initialCenter.z);
+				var colorScale = 1.0;
+				var colorStep = 1.0 / 19.0;
+				for (xStep = 0; xStep < 3; xStep++)
+				{
+					currCenter.setY(initialCenter.y);
+					for (yStep = 0; yStep < 3; yStep++)
+					{
+						currCenter.setZ(initialCenter.z);
+						for (zStep = 0; zStep < 3; zStep++)
+						{
+							if (shouldNotRenderCube(xStep, yStep, zStep) == false)
+							{
+								var subCubeGeom = new THREE.BoxGeometry(
+									subCubeSideLenX, subCubeSideLenY, subCubeSideLenZ );
+								var subCubeMaterial = 
+									new THREE.MeshPhongMaterial({color: 0xFFFFFF});
+								//new THREE.MeshBasicMaterial(
+									//{ color: (0xffffff*colorScale) } );
+								var subCube = new THREE.Mesh(subCubeGeom, subCubeMaterial);
+								
+								subCube.position.x = currCenter.x;
+								subCube.position.y = currCenter.y;
+								subCube.position.z = currCenter.z;
+								
+								subCubes.push(subCube);
+							}
+											
+							currCenter.setZ(currCenter.z - subCubeSideLenZ);
+							colorScale += colorStep;
+						}
+						
+						currCenter.setY(currCenter.y + subCubeSideLenY);
+					}
+					
+					currCenter.setX(currCenter.x + subCubeSideLenX);
+				}
+				
+				return subCubes;
+			}
+			
+			function computeSpongeAtDepth(initialCube, depth)
+			{
+				var initialCubes = computeSponge(initialCube);
+				return recursiveSpongeCompute(depth, initialCubes);
+				//return iterativeSpongeCompute(depth, initialCubes);
+			}
+			
+			function recursiveSpongeCompute(depth, cubeList)
+			{
+				if (depth <= 1) return cubeList;
+				
+				var penultimateCubeList = recursiveSpongeCompute(depth-1, cubeList);
+				var finalCubeList = [];
+				for (i = 0; i < penultimateCubeList.length; i++)
+				{
+					subCubes = computeSponge(penultimateCubeList[i]);
+					for (j = 0; j < subCubes.length; j++)
+					{
+						finalCubeList.push(subCubes[j]);
+					}
+				}
+				
+				return finalCubeList;
+			}
+			
+			function iterativeSpongeCompute(depth, cubeList)
+			{	
+
+				var finalCubeList = cubeList.slice();
+				var currList = finalCubeList.slice();
+				for (i = 0; i < depth; i++)
+				{
+					for (j = 0; j < currList.length; j++)
+					{
+						var newCubes = computeSponge(currList[j]);
+						for (k = 0; k < newCubes.length; k++)
+						{
+							finalCubeList.push(newCubes[k]);
+						}
+					}
+					currList = finalCubeList.slice()
+				}
+				
+				return finalCubeList;
+			}
+			
+			function addSphereCenteredAtPoint(point)
+			{
+				var sphereGeom = new THREE.SphereGeometry(0.5);
+				var sphereMat = new THREE.MeshBasicMaterial( { color: 0xff0000 } );
+				var sphere = new THREE.Mesh(sphereGeom, sphereMat);
+				sphere.position.x = point.x;
+				sphere.position.y = point.y;
+				sphere.position.z = point.z;
+				scene.add(sphere);
+			}
+			
+			// Cubes are meshes made from BoxGeometries
+			function addCubesToScene(cubes)
+			{
+				console.log("Adding " + cubes.length + " cubes to scene.");
+				spongeGeometry = new THREE.Geometry();
+				for (i = 0; i < cubes.length; i++)
+				{
+					cubes[i].updateMatrix();
+					spongeGeometry.merge(cubes[i].geometry, cubes[i].matrix);
+				}
+				var material = new THREE.MeshPhongMaterial({color: 0xFFFFFF});
+				var mesh = new THREE.Mesh(spongeGeometry, material);
+				scene.add(mesh);
+			}
+			
+			var t = 0;
+			function render()
+			{
+				renderer.setSize(window.innerWidth, window.innerHeight);
+				camera.aspect = (window.innerWidth / window.innerHeight);
+				camera.updateProjectionMatrix();
+				requestAnimationFrame( render );
+				
+				camera.position.x = (Math.sin( t/30) * 12 );
+				camera.position.z = (Math.cos( t/30) * 12);
+				camera.lookAt(new THREE.Vector3(0,0,0));
+				t += autoRotateStep;
+
+				renderer.render( scene, camera );
+			}
+			
+			init();
+			
+			var geometry = new THREE.BoxGeometry(
+				originalCubeSizeX, originalCubeSizeY, originalCubeSizeZ);
+			var material = new THREE.MeshBasicMaterial( { color: 0xffffff } );
+			var originalCube = new THREE.Mesh(geometry, material);
+			
+			var subCubes = computeSpongeAtDepth(originalCube, cubeDepth);
+			addCubesToScene(subCubes);
+
+			var light = new THREE.HemisphereLight(0xfffff0, 0x101020, 1.25);
+			light.position.set(0.75, 1, 0.25);
+			scene.add(light);
+
+			render();
+		</script>
+	</body>
+</html>
