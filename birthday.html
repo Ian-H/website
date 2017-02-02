@@ -1,11 +1,23 @@
 <!DOCTYPE html>
 <html>
  <head>
+ <style>
+	body, html {
+		width: 100%;
+		height: 100%;
+		margin: 0;
+		padding: 0;
+		overflow: hidden;
+	}
+	canvas {
+		position:absolute;
+	}
+</style>
   <meta charset="utf-8"/>
   <script type="application/javascript">
 	var gridSize = 60; // 60
 	var updateTimeMS = 1; // 1
-	var canvasPad = 20; //20
+	var canvasPad = 0; //0
 	var colorStep = 255 / (gridSize/2);
 	var colorOffsetHead = 0;
 	var useSquares = true;
